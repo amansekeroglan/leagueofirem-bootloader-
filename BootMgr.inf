@@ -1,0 +1,51 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = BootMgr
+  FILE_GUID                      = 7D5B2C3A-A6DF-4E09-8F8D-5B7F8E6E9B52
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = UefiMain
+
+[Sources]
+  BootMgr.c
+  BootMgr.h
+  Graphics.c
+  Graphics.h
+  Input.c
+  Input.h
+  Timer.c
+  Timer.h
+  WindowsBoot.c
+  WindowsBoot.h
+  FirmwareSetup.c
+  FirmwareSetup.h
+  Helpers.h
+
+[Sources.X64]
+  Helpers.nasm
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiLib
+  BaseLib
+  BaseMemoryLib
+  MemoryAllocationLib
+  DebugLib
+  DevicePathLib
+  PrintLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+
+[Protocols]
+  gEfiGraphicsOutputProtocolGuid
+  gEfiSimpleTextInputExProtocolGuid
+  gEfiSimpleFileSystemProtocolGuid
+  gEfiDevicePathProtocolGuid
+  gEfiLoadedImageProtocolGuid
+
+[Guids]
+  gEfiGlobalVariableGuid

@@ -1,0 +1,41 @@
+# Build outputs and intermediate object files
+*.obj
+*.o
+*.bin
+*.pdb
+*.idb
+*.ilk
+*.exp
+*.lib
+*.map
+*.tmp
+*.log
+*.tlog
+*.lastbuildstate
+
+# Never ignore the compiled EFI binary requested by user
+!BootMgr.efi
+!*.efi
+
+# Visual Studio & IDE directories
+.vs/
+.vscode/
+x64/
+Debug/
+Release/
+out/
+
+# EDK II Build Directories
+Build/
+Conf/
+
+# OS Generated files
+[Tt]humbs.db
+[Ee]hthumbs.db
+[Dd]esktop.ini
+.DS_Store
+
+# Scratch and log directories
+scratch/
+.system_generated/
+
