@@ -15,5 +15,5 @@ cd "$EDK2_DIR"
 source edksetup.sh
 build -a X64 -t GCC -p BootMgrPkg/BootMgr.dsc -b RELEASE
 
-cp -f "$EDK2_DIR/Build/BootMgr/RELEASE_GCC/X64/BootMgr.efi" "$SCRIPT_DIR/BootMgr.efi"
-echo "Build successful: $SCRIPT_DIR/BootMgr.efi"
+cp -f "$EDK2_DIR/Build/BootMgr/RELEASE_GCC/X64/BootMgr.efi" "$SCRIPT_DIR/../BootMgr.efi"
+echo "Build successful: $SCRIPT_DIR/../BootMgr.efi"

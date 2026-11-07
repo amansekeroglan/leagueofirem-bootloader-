@@ -6,10 +6,9 @@ Write-Host "[INFO] Starting AMI Aptio V Native UEFI NVRAM installation for BootM
 
 # 1. Locate Source Binary
 $searchPaths = @(
+    "$PSScriptRoot\..\BootMgr.efi",
     "$PSScriptRoot\BootMgr.efi",
-    "$PSScriptRoot\uefi bootloader\BootMgr.efi",
-    "C:\Users\elf\Desktop\uefi bootloader\BootMgr.efi",
-    "C:\Users\elf\Desktop\uefi bootloader\uefi bootloader\BootMgr.efi"
+    (Join-Path (Get-Location).Path "BootMgr.efi")
 )
 
 $src = $null

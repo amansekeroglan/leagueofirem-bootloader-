@@ -5,8 +5,6 @@ echo ===================================================
 echo [BootMgr] Building UEFI Bootloader on Windows
 echo ===================================================
 
-cd /d "%~dp0"
-
 if not defined VCINSTALLDIR (
     if exist "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" (
         call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat"
@@ -18,14 +16,20 @@ if not defined VCINSTALLDIR (
     )
 )
 
+set "ROOT_DIR=%~dp0.."
+set "SRC_DIR=%ROOT_DIR%\src"
+set "PS_DIR=%ROOT_DIR%\ps"
+
 echo.
 echo [1/3] Preparing embedded graphical assets...
-if not exist "wallpaper.obj" (
-    powershell.exe -ExecutionPolicy Bypass -File "%~dp0gen_wallpaper_1080.ps1"
+if not exist "%SRC_DIR%\wallpaper.obj" (
+    powershell.exe -ExecutionPolicy Bypass -File "%PS_DIR%\gen_wallpaper_1080.ps1"
 )
-if not exist "logo.obj" (
-    powershell.exe -ExecutionPolicy Bypass -File "%~dp0gen_logo.ps1"
+if not exist "%SRC_DIR%\logo.obj" (
+    powershell.exe -ExecutionPolicy Bypass -File "%PS_DIR%\gen_logo.ps1"
 )
+
+cd /d "%SRC_DIR%"
 
 echo.
 echo [2/3] Compiling C source files...
@@ -34,7 +38,7 @@ cl.exe /c /O2 /GS- /W3 /TC /I"msvc_include" /I"." ^
     Graphics.c ^
     Input.c ^
     Timer.c ^
-    WindowsBoot.c ^
+    OsBoot.c ^
     FirmwareSetup.c ^
     msvc_support.c
 
@@ -45,12 +49,12 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo [3/3] Linking BootMgr.efi...
-link.exe /subsystem:efi_application /entry:UefiMain /nodefaultlib /out:BootMgr.efi ^
+link.exe /subsystem:efi_application /entry:UefiMain /nodefaultlib /out:"%ROOT_DIR%\BootMgr.efi" ^
     BootMgr.obj ^
     Graphics.obj ^
     Input.obj ^
     Timer.obj ^
-    WindowsBoot.obj ^
+    OsBoot.obj ^
     FirmwareSetup.obj ^
     msvc_support.obj ^
     wallpaper.obj ^
@@ -70,5 +74,6 @@ echo.
 echo ===================================================
 echo [SUCCESS] BootMgr.efi built successfully!
 echo Binary size:
-dir BootMgr.efi | findstr /i "BootMgr.efi"
+dir "%ROOT_DIR%\BootMgr.efi" | findstr /i "BootMgr.efi"
+echo Output location: %ROOT_DIR%\BootMgr.efi
 echo ===================================================

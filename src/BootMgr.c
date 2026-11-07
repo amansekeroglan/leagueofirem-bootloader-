@@ -2,7 +2,7 @@
 #include "Graphics.h"
 #include "Input.h"
 #include "Timer.h"
-#include "WindowsBoot.h"
+#include "OsBoot.h"
 #include "FirmwareSetup.h"
 #include "Helpers.h"
 #include <Library/UefiBootServicesTableLib.h>
@@ -12,7 +12,6 @@
 
 STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorCardBg = { 0x1A, 0x14, 0x12, 0x00 };
 STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorCardBorder = { 0x58, 0x4E, 0x46, 0x00 };
-STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorTitle = { 0xFF, 0xFF, 0xFF, 0x00 };
 
 STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorSelectedBg = { 0x32, 0x26, 0x20, 0x00 };
 STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorSelectedBorder = { 0x50, 0xBD, 0xFF, 0x00 };
@@ -32,15 +31,70 @@ STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorFooterFg = { 0xB8, 0xB8, 0xB8, 
 STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorErrorBorder = { 0x40, 0x40, 0xE0, 0x00 };
 STATIC CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL mColorErrorFg = { 0x70, 0x70, 0xFF, 0x00 };
 
-STATIC CONST CHAR16 *mOptionsSelected[BOOT_OPTION_COUNT] = {
-  L"> Windows          ",
-  L"> Firmware Settings"
-};
+STATIC OS_BOOT_ENTRY mOsEntries[MAX_OS_ENTRIES];
+STATIC UINTN         mOsCount = 0;
 
-STATIC CONST CHAR16 *mOptionsUnselected[BOOT_OPTION_COUNT] = {
-  L"  Windows          ",
-  L"  Firmware Settings"
-};
+STATIC
+VOID
+GetButtonMetrics (
+  IN  UINTN ScreenWidth,
+  IN  UINTN ScreenHeight,
+  IN  UINTN Scale,
+  OUT UINTN *OutItemWidth,
+  OUT UINTN *OutItemHeight,
+  OUT UINTN *OutItemSpacing,
+  OUT UINTN *OutItem0Y,
+  OUT UINTN *OutItemX
+  )
+{
+  UINTN CharWidth;
+  UINTN CharHeight;
+  UINTN LineSpacing;
+  UINTN ItemHeight;
+  UINTN ItemSpacing;
+  UINTN MaxChars;
+  UINTN Index;
+  UINTN Len;
+  UINTN TotalMenuHeight;
+  UINTN ItemWidth;
+  UINTN Item0Y;
+  UINTN ItemX;
+
+  CharWidth = 8 * Scale;
+  CharHeight = 16 * Scale;
+  LineSpacing = 24 * Scale;
+  ItemHeight = CharHeight + 14 * Scale;
+  ItemSpacing = 10 * Scale;
+  MaxChars = 17; // Minimum width: "Firmware Settings"
+
+  for (Index = 0; Index < mOsCount; Index++) {
+    Len = StrLen (mOsEntries[Index].Name);
+    if (Len > MaxChars) {
+      MaxChars = Len;
+    }
+  }
+
+  ItemWidth = (MaxChars + 4) * CharWidth + 20 * Scale;
+  if (ItemWidth < 23 * CharWidth + 20 * Scale) {
+    ItemWidth = 23 * CharWidth + 20 * Scale;
+  }
+
+  TotalMenuHeight = (mOsCount * ItemHeight) + ((mOsCount > 0 ? (mOsCount - 1) : 0) * ItemSpacing);
+
+  if (ScreenHeight > TotalMenuHeight + (LineSpacing * 4)) {
+    Item0Y = (ScreenHeight / 2) - (TotalMenuHeight / 2);
+  } else {
+    Item0Y = LineSpacing * 2;
+  }
+
+  ItemX = (ScreenWidth > ItemWidth) ? ((ScreenWidth - ItemWidth) / 2) : 0;
+
+  *OutItemWidth = ItemWidth;
+  *OutItemHeight = ItemHeight;
+  *OutItemSpacing = ItemSpacing;
+  *OutItem0Y = Item0Y;
+  *OutItemX = ItemX;
+}
 
 STATIC
 VOID
@@ -52,42 +106,47 @@ RenderMenuItem (
   IN UINTN Scale
   )
 {
-  UINTN CharWidth;
-  UINTN CharHeight;
-  UINTN LineSpacing;
   UINTN ItemWidth;
   UINTN ItemHeight;
-  UINTN ItemX;
+  UINTN ItemSpacing;
   UINTN Item0Y;
+  UINTN ItemX;
   UINTN ItemY;
   UINTN BorderThickness;
-  CONST CHAR16 *Text;
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL BgColor;
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL BorderColor;
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL FgColor;
+  CHAR16 Buffer[64];
 
-  CharWidth = 8 * Scale;
-  CharHeight = 16 * Scale;
-  LineSpacing = 24 * Scale;
-  ItemWidth = 23 * CharWidth + 20 * Scale;
-  ItemHeight = CharHeight + 14 * Scale;
+  if (Index >= mOsCount) {
+    return;
+  }
 
-  ItemX = (ScreenWidth > ItemWidth) ? (ScreenWidth - ItemWidth) / 2 : 0;
-  Item0Y = (ScreenHeight / 2) > LineSpacing ? ((ScreenHeight / 2) - LineSpacing) : LineSpacing;
-  ItemY = (Index == 0) ? Item0Y : (Item0Y + ItemHeight + 10 * Scale);
+  GetButtonMetrics (
+    ScreenWidth,
+    ScreenHeight,
+    Scale,
+    &ItemWidth,
+    &ItemHeight,
+    &ItemSpacing,
+    &Item0Y,
+    &ItemX
+    );
+
+  ItemY = Item0Y + (Index * (ItemHeight + ItemSpacing));
 
   if (Selected) {
     BgColor = mColorSelectedBg;
     BorderColor = mColorSelectedBorder;
     FgColor = mColorSelectedFg;
     BorderThickness = (Scale > 1) ? 2 : 1;
-    Text = mOptionsSelected[Index];
+    UnicodeSPrint (Buffer, sizeof (Buffer), L"> %s", mOsEntries[Index].Name);
   } else {
     BgColor = mColorUnselectedBg;
     BorderColor = mColorUnselectedBorder;
     FgColor = mColorUnselectedFg;
     BorderThickness = 1;
-    Text = mOptionsUnselected[Index];
+    UnicodeSPrint (Buffer, sizeof (Buffer), L"  %s", mOsEntries[Index].Name);
   }
 
   // Restore wallpaper background behind button before drawing card
@@ -121,7 +180,7 @@ RenderMenuItem (
   GraphicsDrawString (
     ItemX + 10 * Scale,
     ItemY + 7 * Scale,
-    Text,
+    Buffer,
     FgColor,
     BgColor,
     Scale
@@ -139,8 +198,11 @@ RenderMenu (
 {
   UINTN CharWidth;
   UINTN CharHeight;
-  UINTN LineSpacing;
+  UINTN ItemWidth;
+  UINTN ItemHeight;
+  UINTN ItemSpacing;
   UINTN Item0Y;
+  UINTN ItemX;
   UINTN MarginTop;
   UINTN MarginBottom;
   UINTN MaxLogoW;
@@ -153,17 +215,27 @@ RenderMenu (
   UINTN FooterHeight;
   UINTN FooterX;
   UINTN FooterY;
+  UINTN Index;
   CONST CHAR16 *FooterText;
 
   CharWidth = 8 * Scale;
   CharHeight = 16 * Scale;
-  LineSpacing = 24 * Scale;
 
   // Draw full-screen wallpaper covering entire display
   GraphicsDrawWallpaper ();
 
+  GetButtonMetrics (
+    ScreenWidth,
+    ScreenHeight,
+    Scale,
+    &ItemWidth,
+    &ItemHeight,
+    &ItemSpacing,
+    &Item0Y,
+    &ItemX
+    );
+
   // Calculate dynamic logo size and position strictly scaled to screen size
-  Item0Y = (ScreenHeight / 2) > LineSpacing ? ((ScreenHeight / 2) - LineSpacing) : LineSpacing;
   MarginTop = 16 * Scale;
   MarginBottom = 16 * Scale;
 
@@ -199,9 +271,10 @@ RenderMenu (
     LogoH
     );
 
-  // Render Options
-  RenderMenuItem (0, SelectedIndex == 0, ScreenWidth, ScreenHeight, Scale);
-  RenderMenuItem (1, SelectedIndex == 1, ScreenWidth, ScreenHeight, Scale);
+  // Render All Detected OS Options
+  for (Index = 0; Index < mOsCount; Index++) {
+    RenderMenuItem (Index, SelectedIndex == Index, ScreenWidth, ScreenHeight, Scale);
+  }
 
   // Render Footer Card
   FooterText = L"[Up/Down] Navigate    [Enter] Select";
@@ -249,25 +322,38 @@ RenderCountdown (
   UINTN CharWidth;
   UINTN CharHeight;
   UINTN LineSpacing;
+  UINTN ItemWidth;
   UINTN ItemHeight;
+  UINTN ItemSpacing;
   UINTN Item0Y;
-  UINTN Item1Y;
+  UINTN ItemX;
+  UINTN LastItemY;
   UINTN CountdownY;
   UINTN PillWidth;
   UINTN PillHeight;
   UINTN PillX;
-  CHAR16 Buffer[64];
+  CHAR16 Buffer[80];
   CONST CHAR16 *TargetName;
 
   CharWidth = 8 * Scale;
   CharHeight = 16 * Scale;
   LineSpacing = 24 * Scale;
-  ItemHeight = CharHeight + 14 * Scale;
-  Item0Y = (ScreenHeight / 2) > LineSpacing ? ((ScreenHeight / 2) - LineSpacing) : LineSpacing;
-  Item1Y = Item0Y + ItemHeight + 10 * Scale;
-  CountdownY = Item1Y + ItemHeight + (LineSpacing * 2);
 
-  PillWidth = 37 * CharWidth + 24 * Scale;
+  GetButtonMetrics (
+    ScreenWidth,
+    ScreenHeight,
+    Scale,
+    &ItemWidth,
+    &ItemHeight,
+    &ItemSpacing,
+    &Item0Y,
+    &ItemX
+    );
+
+  LastItemY = Item0Y + ((mOsCount > 0 ? (mOsCount - 1) : 0) * (ItemHeight + ItemSpacing));
+  CountdownY = LastItemY + ItemHeight + (LineSpacing * 2);
+
+  PillWidth = 42 * CharWidth + 24 * Scale;
   PillHeight = CharHeight + 12 * Scale;
   PillX = (ScreenWidth > PillWidth) ? (ScreenWidth - PillWidth) / 2 : 0;
 
@@ -279,7 +365,11 @@ RenderCountdown (
     PillHeight + 4 * Scale
     );
 
-  TargetName = (SelectedIndex == BOOT_OPTION_WINDOWS) ? L"Windows" : L"Firmware Settings";
+  if (SelectedIndex < mOsCount) {
+    TargetName = mOsEntries[SelectedIndex].Name;
+  } else {
+    TargetName = L"OS";
+  }
 
   if (Seconds == 1) {
     UnicodeSPrint (
@@ -336,9 +426,12 @@ ClearCountdown (
   UINTN CharWidth;
   UINTN CharHeight;
   UINTN LineSpacing;
+  UINTN ItemWidth;
   UINTN ItemHeight;
+  UINTN ItemSpacing;
   UINTN Item0Y;
-  UINTN Item1Y;
+  UINTN ItemX;
+  UINTN LastItemY;
   UINTN CountdownY;
   UINTN PillWidth;
   UINTN PillHeight;
@@ -347,12 +440,22 @@ ClearCountdown (
   CharWidth = 8 * Scale;
   CharHeight = 16 * Scale;
   LineSpacing = 24 * Scale;
-  ItemHeight = CharHeight + 14 * Scale;
-  Item0Y = (ScreenHeight / 2) > LineSpacing ? ((ScreenHeight / 2) - LineSpacing) : LineSpacing;
-  Item1Y = Item0Y + ItemHeight + 10 * Scale;
-  CountdownY = Item1Y + ItemHeight + (LineSpacing * 2);
 
-  PillWidth = 37 * CharWidth + 24 * Scale;
+  GetButtonMetrics (
+    ScreenWidth,
+    ScreenHeight,
+    Scale,
+    &ItemWidth,
+    &ItemHeight,
+    &ItemSpacing,
+    &Item0Y,
+    &ItemX
+    );
+
+  LastItemY = Item0Y + ((mOsCount > 0 ? (mOsCount - 1) : 0) * (ItemHeight + ItemSpacing));
+  CountdownY = LastItemY + ItemHeight + (LineSpacing * 2);
+
+  PillWidth = 42 * CharWidth + 24 * Scale;
   PillHeight = CharHeight + 12 * Scale;
   PillX = (ScreenWidth > PillWidth) ? (ScreenWidth - PillWidth) / 2 : 0;
 
@@ -374,7 +477,6 @@ DisplayError (
   UINTN ScreenHeight;
   UINTN Scale;
   UINTN LineSpacing;
-  UINTN CharHeight;
   UINTN DialogWidth;
   UINTN DialogHeight;
   UINTN DialogX;
@@ -384,7 +486,6 @@ DisplayError (
   ScreenHeight = GraphicsGetScreenHeight ();
   Scale = GraphicsGetScale ();
   LineSpacing = 24 * Scale;
-  CharHeight = 16 * Scale;
 
   GraphicsDrawWallpaper ();
 
@@ -438,6 +539,7 @@ UefiMain (
 {
   EFI_STATUS Status;
   UINTN SelectedIndex;
+  UINTN PreviousIndex;
   UINTN CountdownSeconds;
   BOOLEAN CountdownActive;
   UINTN ScreenWidth;
@@ -469,7 +571,14 @@ UefiMain (
     return Status;
   }
 
-  SelectedIndex = BOOT_OPTION_WINDOWS;
+  // Scan all storage devices and partitions for installed OS bootloaders
+  Status = OsScanAll (mOsEntries, MAX_OS_ENTRIES, &mOsCount);
+  if (EFI_ERROR (Status) && mOsCount == 0) {
+    DisplayError (L"No bootable operating systems found on any disk partition.");
+    return Status;
+  }
+
+  SelectedIndex = 0;
   CountdownSeconds = BOOT_TIMEOUT_SECONDS;
   CountdownActive = TRUE;
   TimerEvent = NULL;
@@ -514,13 +623,22 @@ UefiMain (
     if (EventIndex == 0) {
       Status = InputPollKey (&KeyAction);
       if (!EFI_ERROR (Status)) {
-        if (KeyAction == KeyActionUp || KeyAction == KeyActionDown) {
-          SelectedIndex = (SelectedIndex == BOOT_OPTION_WINDOWS) ?
-                          BOOT_OPTION_FIRMWARE_SETUP :
-                          BOOT_OPTION_WINDOWS;
+        if (KeyAction == KeyActionUp) {
+          PreviousIndex = SelectedIndex;
+          SelectedIndex = (SelectedIndex == 0) ? (mOsCount - 1) : (SelectedIndex - 1);
 
-          RenderMenuItem (0, SelectedIndex == 0, ScreenWidth, ScreenHeight, Scale);
-          RenderMenuItem (1, SelectedIndex == 1, ScreenWidth, ScreenHeight, Scale);
+          RenderMenuItem (PreviousIndex, FALSE, ScreenWidth, ScreenHeight, Scale);
+          RenderMenuItem (SelectedIndex, TRUE, ScreenWidth, ScreenHeight, Scale);
+
+          if (CountdownActive) {
+            RenderCountdown (CountdownSeconds, SelectedIndex, ScreenWidth, ScreenHeight, Scale);
+          }
+        } else if (KeyAction == KeyActionDown) {
+          PreviousIndex = SelectedIndex;
+          SelectedIndex = (SelectedIndex + 1 >= mOsCount) ? 0 : (SelectedIndex + 1);
+
+          RenderMenuItem (PreviousIndex, FALSE, ScreenWidth, ScreenHeight, Scale);
+          RenderMenuItem (SelectedIndex, TRUE, ScreenWidth, ScreenHeight, Scale);
 
           if (CountdownActive) {
             RenderCountdown (CountdownSeconds, SelectedIndex, ScreenWidth, ScreenHeight, Scale);
@@ -533,26 +651,16 @@ UefiMain (
             }
           }
 
-          if (SelectedIndex == BOOT_OPTION_WINDOWS) {
-            Status = WindowsBootLaunch (ImageHandle);
-            if (EFI_ERROR (Status)) {
-              if (Status == EFI_NOT_FOUND) {
-                DisplayError (L"Windows Boot Manager not found on any system partition.");
-              } else {
-                DisplayError (L"Failed to launch Windows Boot Manager.");
-              }
-              RenderMenu (SelectedIndex, ScreenWidth, ScreenHeight, Scale);
+          Status = OsLaunch (&mOsEntries[SelectedIndex], ImageHandle);
+          if (EFI_ERROR (Status)) {
+            if (Status == EFI_NOT_FOUND) {
+              DisplayError (L"Selected operating system loader not found on disk.");
+            } else if (Status == EFI_UNSUPPORTED) {
+              DisplayError (L"Operation is not supported by this motherboard firmware.");
+            } else {
+              DisplayError (L"Failed to launch selected operating system.");
             }
-          } else if (SelectedIndex == BOOT_OPTION_FIRMWARE_SETUP) {
-            Status = FirmwareSetupEnter ();
-            if (EFI_ERROR (Status)) {
-              if (Status == EFI_UNSUPPORTED) {
-                DisplayError (L"Firmware settings entry is not supported by this motherboard.");
-              } else {
-                DisplayError (L"Failed to request firmware settings entry.");
-              }
-              RenderMenu (SelectedIndex, ScreenWidth, ScreenHeight, Scale);
-            }
+            RenderMenu (SelectedIndex, ScreenWidth, ScreenHeight, Scale);
           }
         }
       }
@@ -567,26 +675,16 @@ UefiMain (
         }
         ClearCountdown (ScreenWidth, ScreenHeight, Scale);
 
-        if (SelectedIndex == BOOT_OPTION_WINDOWS) {
-          Status = WindowsBootLaunch (ImageHandle);
-          if (EFI_ERROR (Status)) {
-            if (Status == EFI_NOT_FOUND) {
-              DisplayError (L"Windows Boot Manager not found on any system partition.");
-            } else {
-              DisplayError (L"Failed to launch Windows Boot Manager.");
-            }
-            RenderMenu (SelectedIndex, ScreenWidth, ScreenHeight, Scale);
+        Status = OsLaunch (&mOsEntries[SelectedIndex], ImageHandle);
+        if (EFI_ERROR (Status)) {
+          if (Status == EFI_NOT_FOUND) {
+            DisplayError (L"Selected operating system loader not found on disk.");
+          } else if (Status == EFI_UNSUPPORTED) {
+            DisplayError (L"Operation is not supported by this motherboard firmware.");
+          } else {
+            DisplayError (L"Failed to launch selected operating system.");
           }
-        } else if (SelectedIndex == BOOT_OPTION_FIRMWARE_SETUP) {
-          Status = FirmwareSetupEnter ();
-          if (EFI_ERROR (Status)) {
-            if (Status == EFI_UNSUPPORTED) {
-              DisplayError (L"Firmware settings entry is not supported by this motherboard.");
-            } else {
-              DisplayError (L"Failed to request firmware settings entry.");
-            }
-            RenderMenu (SelectedIndex, ScreenWidth, ScreenHeight, Scale);
-          }
+          RenderMenu (SelectedIndex, ScreenWidth, ScreenHeight, Scale);
         }
       }
     }

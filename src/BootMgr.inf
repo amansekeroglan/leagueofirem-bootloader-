@@ -15,8 +15,8 @@
   Input.h
   Timer.c
   Timer.h
-  WindowsBoot.c
-  WindowsBoot.h
+  OsBoot.c
+  OsBoot.h
   FirmwareSetup.c
   FirmwareSetup.h
   Helpers.h

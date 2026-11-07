@@ -72,6 +72,27 @@ UINTN EFIAPI StrLen(CONST CHAR16 *String)
     return len;
 }
 
+INTN EFIAPI StrCmp(CONST CHAR16 *FirstString, CONST CHAR16 *SecondString)
+{
+    if (!FirstString && !SecondString) return 0;
+    if (!FirstString) return -1;
+    if (!SecondString) return 1;
+    while (*FirstString != 0 && *FirstString == *SecondString) {
+        FirstString++;
+        SecondString++;
+    }
+    return (INTN)(*FirstString - *SecondString);
+}
+
+VOID EFIAPI StrCpy(CHAR16 *Destination, CONST CHAR16 *Source)
+{
+    if (!Destination || !Source) return;
+    while (*Source != 0) {
+        *Destination++ = *Source++;
+    }
+    *Destination = 0;
+}
+
 VOID EFIAPI FreePool(IN VOID *Buffer)
 {
     if (Buffer != NULL && gBS != NULL) {
